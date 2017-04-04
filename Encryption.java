@@ -6,7 +6,7 @@ import java.util.Arrays;
 public class Encryption {
 
 	static {
-		System.loadLibrary("encryption");
+		System.loadLibrary("Encryption");
 	}
 
 	public native byte[] encryptArray(byte[] v, byte[] key);
