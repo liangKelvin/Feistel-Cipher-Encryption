@@ -3,7 +3,7 @@ make:
 	javac *.java
 	javah Encryption
 	# for compiling on lab machines aka Linux
-	gcc -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -shared -fpic -o libEncryption.so lib_Encryption.c
+	gcc -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -shared -fpic -o libEncryption.so lib_encryption.c
 
 	# for compiling on macOs 
 	#gcc -c -fPIC -I/System/Library/Frameworks/JavaVM.framework/Versions/A/Headers/ lib_Encryption.c -o libEncryption.o
