@@ -1,10 +1,13 @@
 import java.io.*;
 import java.net.*;
+import java.io.File;
+import java.nio.file.*;
+import java.util.*;
 
 
 public class Client {
 
-	public static void main(String args[]) {
+	public static void main(String args[]) throws Exception {
 
 		// check arguments
 		if(args.length != 3) {
@@ -14,76 +17,117 @@ public class Client {
 
 
 		System.out.println("Starting Client");
+
+		Encryption encryptionHandler = new Encryption();
+
 		// server/user info
 		int port = 16000; // always 16000
 		// user info 
 		String userName = args[0];
-		String key = args[1];
+		String pass = args[1];
 		String host = args[2];
-
-		Encryption encryptionHandler = new Encryption();
-		System.out.println("Created Encryption Handler");
+		String fromUser = null; // user data
+		final String privateHash = "abcdefg";
 
 		// establish socket connection (Port 16000)
 		try{
 
 			// set up socket and in/out streams; 
 			Socket socket = new Socket(host, port);
-			System.out.println("Socket and Streams set up");
-			
 			ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
 			ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
+			DiffieH dhHandler = new DiffieH();
 
-			// how we read from streams 
+			// how we read from commandline
 			BufferedReader read = new BufferedReader(new InputStreamReader(System.in));
-			Response fromServer; // data from Server
-			String fromUser; // user data
 
-			// Send initial Message 
-			byte[] initialMessage = encryptionHandler.encrypt("AUTH", key);
-			outputStream.writeObject(new Request(initialMessage)); // say hi to the server :)
-			System.out.println("Sent initial Message");
+			// Diffie Hellman key exchange
+			String key = dhHandler.handShake(inputStream, outputStream);
+
+            byte[] saltedPass = encryptionHandler.encrypt(pass.getBytes(), privateHash);
+			
+			// first send UserName
+			byte[] encryptedData = encryptionHandler.encrypt(userName.getBytes(), key);
+			outputStream.writeObject(encryptedData);
+
+			encryptedData =  (byte[]) inputStream.readObject();
+			byte[] data = encryptionHandler.decrypt(encryptedData, key);
+			String recieved = new String(data);
+
+			if(!recieved.equals("ACK")) {
+				System.out.println("userName not sent error");
+				socket.close();
+			}
+
+			encryptedData = encryptionHandler.encrypt(saltedPass, key);
+			outputStream.writeObject(encryptedData);
+
+			// Access granted?
+			encryptedData = (byte[]) inputStream.readObject();
+			data = encryptionHandler.decrypt(encryptedData, key);
+			String access = new String(data);
+
+			if(access.equals("Access-Denied")) {
+				System.out.println(access + ", Password Incorect");
+				System.exit(1);
+			}
+
+
+			System.out.println("Access-Granted");
+			System.out.println("To exit: \"exit\"");
+			System.out.print("What File would you like to retrieve?: ");
+
+			String fileName = read.readLine();
+			encryptedData = encryptionHandler.encrypt(fileName.getBytes(), key);
+			outputStream.writeObject(encryptedData);
 
 			// recieve from server
-			while((fromServer = (Response) inputStream.readObject()) != null) {
-				System.out.println("recieved first response form Server");
+			while((encryptedData = (byte[]) inputStream.readObject()) != null) {
+
 				// extract msg and decrypt
-				byte[] decrypted = encryptionHandler.decrypt(fromServer.getMessage(), key);
+				byte[] decrypted = encryptionHandler.decrypt(encryptedData, key);
 				String newMessage = new String(decrypted);
 
 				if(newMessage.startsWith("EXIT")) {
 					break; // user ending connection
 					// initial acknowledgement for connection
-				} else if(newMessage.startsWith("ACK")) {
-
-					System.out.println("Connected");
-					// prompt user for info
-					System.out.println("What File would you like to retrieve?");
-					System.out.println("To exit: \"exit\"");
 
 				} else if(newMessage.startsWith("NOTFOUND")) {
 
 					System.out.println("File Not Found");
+					System.out.print("Would you like to try to download another file? Answer Yes or No: ");
+					fromUser = read.readLine();
+
+					if (fromUser.equals("No")) {
+						break;
+					}
+
+					System.out.print("What is the FileName?: ");
+					fileName = read.readLine();
+					encryptedData = encryptionHandler.encrypt(fileName.getBytes(), key);
+					outputStream.writeObject(encryptedData);
 
 				} else {
+					// encrypted File being sent over.
+					System.out.println("Recieving File");
+					Path currentRelativePath = Paths.get("");
+					String s = currentRelativePath.toAbsolutePath().toString();
+					File newFile = new File(fileName);
+					byte[] decryptedContent = encryptionHandler.decrypt(encryptedData, key);
+					Files.write(newFile.toPath(), decryptedContent);
+					System.out.println("File downloaded");
 
-					String[] splitMessage = newMessage.split("\n");
-					String filename = splitMessage[0];
-					File file = new File(filename);
-					PrintWriter writer = new PrintWriter(file);
+					System.out.println("Would you like to downloaded another file? Answer Yes or No: ");
+					fromUser = read.readLine();
 
-					for(int i = 1; i < splitMessage.length; i++) {
-						writer.println(splitMessage[i]);
+					if(fromUser.equals("No")) {
+						break;
 					}
-					writer.close();
-					System.out.println("File: " + filename + "downloaded");
-				}
 
-				fromUser = read.readLine();
-				if(fromUser != null) {
-					// encrypt here
-					byte[] encryptMessage = encryptionHandler.encrypt(fromUser.getBytes(), key);
-					outputStream.writeObject(encryptMessage);
+					System.out.print("What is the FileName?: ");
+					fileName = read.readLine();
+					encryptedData = encryptionHandler.encrypt(fileName.getBytes(), key);
+					outputStream.writeObject(encryptedData);
 				}
 			}
 			// done

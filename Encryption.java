@@ -32,7 +32,7 @@ public class Encryption {
 
 
 	public byte[] decrypt(byte[] v, String k) {
-
+	
 		byte[] key = ByteBuffer.allocate(32).put(k.getBytes()).array();
 		byte[] decrypted = decryptArray(v, key);
 

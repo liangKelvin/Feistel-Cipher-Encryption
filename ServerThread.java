@@ -1,6 +1,9 @@
 import java.net.*;
 import java.io.*;
 import java.util.*;
+import java.io.File;
+import java.nio.file.Files;
+import java.util.*;
 
 
 public class ServerThread extends Thread{
@@ -15,9 +18,11 @@ public class ServerThread extends Thread{
 	private User user;
 	private List<User> users; 
 	private ServerState state;
-	private Encryption encryptionHandler;
+	public Encryption encryptionHandler;
+	private final String fileName = "users.ser";
+	public SaveLoadController fileManager = new SaveLoadController();
 
-	public ServerThread(Socket socket, List<User> users) {
+	public ServerThread(Socket socket) {
 
 		super("ServerThread");
 		this.users = users;
@@ -28,29 +33,88 @@ public class ServerThread extends Thread{
 
 	public void run() {
 
-		try{
+		System.out.println("Server Thread Started");
+		encryptionHandler = new Encryption();
+		users = fileManager.loadFromShadowFile(fileName); // load user list
 
+		try{
+			// set up object streams
 			ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
 			ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
+			FileInputStream fis = null;
+			DiffieH dhHandler = new DiffieH();
 
-			Request request;
-			Response response; 
+			// Diffie Hellman Key Exchange
+			String key = dhHandler.handShake(input, output);
 
-			while((request = (Request) input.readObject()) != null) {
+			// expecting to Recieve User object
+			byte[] encryptedData = (byte[]) input.readObject();
+			byte[] data = encryptionHandler.decrypt(encryptedData, key);
+			String userName = new String(data);
 
-				if(this.state == ServerState.AUTH) {
-					if(authorize(request.message)) {
+			// tell Client you got the userName
+			String recieved = "ACK";
+			encryptedData = encryptionHandler.encrypt(recieved.getBytes(), key);
+			output.writeObject(encryptedData);
 
-						state = ServerState.NORM;
-						String reply = "Connected";
-						response = new Response(encryptionHandler.encrypt(reply.getBytes(), user.key));
-						output.writeObject(response);
-						output.flush();
-					} else {
+			// recieve User Password
+			encryptedData = (byte[]) input.readObject();
+			byte[] saltedPass = encryptionHandler.decrypt(encryptedData, key);
+
+			User client = new User(userName, saltedPass);
+			// check if user info matches some user in the shadow file
+			if(authorize(client)) {
+
+				this.state = ServerState.NORM;
+				String reply = "Access-Granted";
+				encryptedData = encryptionHandler.encrypt(reply.getBytes(), key);
+				output.writeObject(encryptedData);
+				output.flush();
+				System.out.println("Access-Granted Response sent");
+
+			} else {
+
+				String reply = "Access-Denied";
+				encryptedData = encryptionHandler.encrypt(reply.getBytes(), key);
+				output.writeObject(encryptedData);
+				output.flush();
+				System.out.println("Access Denied Response sent");
+				socket.close();
+
+			}
+
+
+			// enter file transfer mode
+			while((encryptedData = (byte[]) input.readObject()) != null) {
+
+				// make sure server state is correct
+				if(this.state == ServerState.AUTH) {	
+
+				} else {
+					// decrypt for FileName
+					byte[] decrypted = encryptionHandler.decrypt(encryptedData, key);
+					String fileName = new String(decrypted);
+					// if the client wants to terminate
+					if(fileName.equals("Exit")) {
 						break;
 					}
-				} else {
-					// file stuff
+					System.out.println("FileName: " + fileName);
+
+					// set up File for transfer
+					File myFile = new File(fileName);
+					// if file does not exist
+					if(!myFile.exists() && !myFile.isDirectory()) { 
+						String reply = "NOTFOUND";
+						encryptedData = encryptionHandler.encrypt(reply.getBytes(), key);
+						output.writeObject(encryptedData);
+						System.out.println("File Not Found, Sent Reply");
+ 					} else {
+
+						byte[] content = Files.readAllBytes(myFile.toPath());
+						byte[] encryptedContent = encryptionHandler.encrypt(content, key);
+						output.writeObject(encryptedContent); // send
+						System.out.println("File Sent");
+					}
 				}
 			}
 			output.close();
@@ -67,19 +131,15 @@ public class ServerThread extends Thread{
 		}
 	}
 	// authenticate
-	public boolean authorize(byte[] message) {
-
+	public boolean authorize(User client) {
 		for(User user : this.users) {
-			byte[] decrypted = encryptionHandler.decrypt(message, user.key);
-			String decryptedMsg = new String(decrypted);
 
-			if(decryptedMsg.startsWith("AUTH")) {
-				user.authenticated = true;
-				this.user = user;
-				System.out.println("Authenticated: " + user.userName);
-				return true;
+			if(user.userName.equals(client.userName)) {
+				if(Arrays.equals(user.key, client.key)) {
+					return true; 
+				}
 			}
-		}
+		}	
 		return false; 
-	}
+	}	
 }	
