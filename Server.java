@@ -8,6 +8,7 @@ public class Server {
 	public static List<User> users;
 	public static String fileName = "users.ser";
 	public static SaveLoadController fileManager;
+	public static ServerSocket serverSocket;
 
 
 	public static void main(String[] args) throws IOException {
@@ -23,7 +24,7 @@ public class Server {
 
 		try {
 
-			ServerSocket serverSocket = new ServerSocket(portNum);
+			serverSocket = new ServerSocket(portNum);
 			System.out.println("Server has started, Now Listening");
 			int numOfClients = 0;
 			// starts a new server thread for each new client

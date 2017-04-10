@@ -21,6 +21,12 @@ public class ServerThread extends Thread{
 	public Encryption encryptionHandler;
 	private final String fileName = "users.ser";
 	public SaveLoadController fileManager = new SaveLoadController();
+	private FileInputStream fis;
+	private ObjectInputStream input;
+	private ObjectOutputStream output;
+	private DiffieH dhHandler;
+	private String key;
+
 
 	public ServerThread(Socket socket) {
 
@@ -39,13 +45,13 @@ public class ServerThread extends Thread{
 
 		try{
 			// set up object streams
-			ObjectInputStream input = new ObjectInputStream(socket.getInputStream());
-			ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
-			FileInputStream fis = null;
-			DiffieH dhHandler = new DiffieH();
+			input = new ObjectInputStream(socket.getInputStream());
+			output = new ObjectOutputStream(socket.getOutputStream());
+			fis = null;
+			dhHandler = new DiffieH();
 
 			// Diffie Hellman Key Exchange
-			String key = dhHandler.handShake(input, output);
+			key = dhHandler.handShake(input, output);
 
 			// expecting to Recieve User object
 			byte[] encryptedData = (byte[]) input.readObject();

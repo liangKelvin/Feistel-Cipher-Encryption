@@ -17,7 +17,7 @@ public class Encryption {
 	}
 
 	public byte[] encrypt(byte[] s, String key) {
-		int len = s.length + 4;
+		int len = s.length+4;
 		int pad = 0;
 		// find the proper padding needed
 		while((len+pad) % 16 != 0) {

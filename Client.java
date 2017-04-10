@@ -7,6 +7,15 @@ import java.util.*;
 
 public class Client {
 
+	public static Socket socket;
+	public static ObjectOutputStream outputStream;
+	public static ObjectInputStream inputStream;
+	public static DiffieH dhHandler;
+	public static Encryption encryptionHandler;
+	public static final String privateHash = "abcdefg";
+	public static BufferedReader read;
+	public static String key;
+
 	public static void main(String args[]) throws Exception {
 
 		// check arguments
@@ -27,22 +36,21 @@ public class Client {
 		String pass = args[1];
 		String host = args[2];
 		String fromUser = null; // user data
-		final String privateHash = "abcdefg";
 
 		// establish socket connection (Port 16000)
 		try{
 
 			// set up socket and in/out streams; 
-			Socket socket = new Socket(host, port);
-			ObjectOutputStream outputStream = new ObjectOutputStream(socket.getOutputStream());
-			ObjectInputStream inputStream = new ObjectInputStream(socket.getInputStream());
-			DiffieH dhHandler = new DiffieH();
+			socket = new Socket(host, port);
+			outputStream = new ObjectOutputStream(socket.getOutputStream());
+			inputStream = new ObjectInputStream(socket.getInputStream());
+			dhHandler = new DiffieH();
 
 			// how we read from commandline
-			BufferedReader read = new BufferedReader(new InputStreamReader(System.in));
+			read = new BufferedReader(new InputStreamReader(System.in));
 
 			// Diffie Hellman key exchange
-			String key = dhHandler.handShake(inputStream, outputStream);
+			key = dhHandler.handShake(inputStream, outputStream);
 
             byte[] saltedPass = encryptionHandler.encrypt(pass.getBytes(), privateHash);
 			
@@ -53,6 +61,8 @@ public class Client {
 			encryptedData =  (byte[]) inputStream.readObject();
 			byte[] data = encryptionHandler.decrypt(encryptedData, key);
 			String recieved = new String(data);
+
+			System.out.println(recieved);
 
 			if(!recieved.equals("ACK")) {
 				System.out.println("userName not sent error");

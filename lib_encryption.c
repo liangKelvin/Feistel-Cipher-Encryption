@@ -2,11 +2,10 @@
 #include <stdlib.h>
 #include "Encryption.h"
 
-// encrypt and decrypt C functions taken from eClass
-void encrypt (long *v, long *k){
+void encrypt (int *v, int *k){
 /* TEA encryption algorithm */
-unsigned long y = v[0], z=v[1], sum = 0;
-unsigned long delta = 0x9e3779b9, n=32;
+unsigned int y = v[0], z=v[1], sum = 0;
+unsigned int delta = 0x9e3779b9, n=32;
 
 	while (n-- > 0){
 		sum += delta;
@@ -18,11 +17,10 @@ unsigned long delta = 0x9e3779b9, n=32;
 	v[1] = z;
 }
 
-
-void decrypt (long *v, long *k){
+void decrypt (int *v, int *k){
 /* TEA decryption routine */
-unsigned long n=32, sum, y=v[0], z=v[1];
-unsigned long delta=0x9e3779b9l;
+unsigned int n=32, sum, y=v[0], z=v[1];
+unsigned int delta=0x9e3779b9l;
 
 	sum = delta<<5;
 	while (n-- > 0){
@@ -33,6 +31,7 @@ unsigned long delta=0x9e3779b9l;
 	v[0] = y;
 	v[1] = z;
 }
+
 
 // JNI library code for TEA encrypt/decrypt
 JNIEXPORT jbyteArray JNICALL Java_Encryption_encryptArray
@@ -46,12 +45,12 @@ JNIEXPORT jbyteArray JNICALL Java_Encryption_encryptArray
 	len_k = (*env)->GetArrayLength(env, k);
 	len_v = (*env)->GetArrayLength(env, v);
 
-	if(len_k  != 4*sizeof(long)) {
+	if(len_k  != 8*sizeof(int)) {
 		printf("Error: Key is not of correct size\n");
 		exit(0);
 	}
 
-	if(len_v % 2*sizeof(long) != 0) {
+	if(len_v % 4*sizeof(int) != 0) {
 		printf("error: values are not padded\n");
 		exit(0);
 	}
@@ -62,8 +61,8 @@ JNIEXPORT jbyteArray JNICALL Java_Encryption_encryptArray
 	ptr = buff_v;
 
 	while(ptr < buff_v + len_v) {
-		encrypt((long*)ptr, (long*)buff_k);
-		ptr += 2*sizeof(long);
+		encrypt((int*)ptr, (int*)buff_k);
+		ptr += 4*sizeof(int);
 	}
 
 	result = (*env)->NewByteArray(env, len_v);
@@ -82,12 +81,12 @@ JNIEXPORT jbyteArray JNICALL Java_Encryption_decryptArray
 	len_k = (*env)->GetArrayLength(env, k);
 	len_v = (*env)->GetArrayLength(env, v);
 
-	if(len_k  != 4*sizeof(long)) {
+	if(len_k  != 8*sizeof(int)) {
 		printf("Error: Key is not of correct size\n");
 		exit(0);
 	}
 
-	if(len_v % 2*sizeof(long) != 0) {
+	if(len_v % 4*sizeof(int) != 0) {
 		printf("error: values are not padded\n");
 		exit(0);
 	}
@@ -98,8 +97,8 @@ JNIEXPORT jbyteArray JNICALL Java_Encryption_decryptArray
 	ptr = buff_v;
 
 	while(ptr < buff_v + len_v) {
-		decrypt((long*)ptr, (long*)buff_k);
-		ptr += 2*sizeof(long);
+		decrypt((int*)ptr, (int*)buff_k);
+		ptr += 4*sizeof(int);
 	}
 
 	result = (*env)->NewByteArray(env, len_v);
